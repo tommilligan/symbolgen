@@ -1,48 +1,58 @@
-use alga::linear::EuclideanSpace;
-use nalgebra::{base::Vector2, geometry::Point};
+use nalgebra::{
+    base::{dimension::U2, Vector2},
+    geometry::Point as PointN,
+};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
-pub type PVector = Vector2<f64>;
+pub type Point = PointN<f64, U2>;
+pub type Vector = Vector2<f64>;
+
+#[derive(PartialEq)]
+pub enum Duplicates {
+    Yes,
+    No,
+}
 
 #[derive(Debug)]
 pub struct Glyph {
-    width: f64,
-    height: f64,
-
-    origin: PVector,
+    /// The number of lines generated.
     num_lines: i32,
-    resolution: f64,
-    density: f64,
+    /// The numer steps visible along one grid axis.
+    resolution: i32,
+    /// 1 / resolution
+    step: f64,
+    /// The number of lines to draw per resolution
+    density: i32,
+    /// Whether to mirror in the y-axis
     symmetry: bool,
+    /// Enable diagonal lines
     enable_diags: bool,
 
+    /// Generated lines
     lines: Vec<Line>,
+    /// RNG
     rng: ChaCha8Rng,
+    /// Seed
     seed: u64,
 }
 
 impl Glyph {
     pub fn new(
-        width: f64,
-        height: f64,
-        origin: &PVector,
-        resolution: f64,
-        density: f64,
+        resolution: i32,
+        density: i32,
         symmetry: bool,
         enable_diags: bool,
         seed: u64,
     ) -> Self {
         let mut new_self = Self {
-            width,
-            height,
-            origin: origin.clone(),
             resolution,
+            step: 1.0 / (resolution - 1) as f64,
             density,
             symmetry,
             enable_diags,
 
-            num_lines: (density * resolution).floor() as i32,
+            num_lines: density * resolution,
             lines: Vec::new(),
 
             rng: ChaCha8Rng::seed_from_u64(seed),
@@ -52,74 +62,95 @@ impl Glyph {
         new_self
     }
 
+    /// Generate a random x coordinate
+    fn gen_x(&mut self) -> f64 {
+        let gen_resolution = (self.resolution as f64) / (if self.symmetry { 1.0 } else { 2.0 });
+
+        let index = self.rng.gen_range::<f64, _, _>(0.0, gen_resolution).floor();
+        index / (self.resolution - 1) as f64
+    }
+
+    /// Generate a random y coordinate
+    fn gen_y(&mut self) -> f64 {
+        let index = self
+            .rng
+            .gen_range::<f64, _, _>(0.0, self.resolution as f64)
+            .floor();
+        index / (self.resolution - 1) as f64
+    }
+
+    /// Generate -1, 0, 1 with equal probability.
+    fn gen_adjustment(&mut self) -> f64 {
+        self.rng.gen_range(-1, 2) as f64
+    }
+
     fn generate(&mut self) {
         for _i in 0..self.num_lines {
-            let coin_flip = self.rng.gen::<bool>();
-            let coin_flip2 = self.rng.gen::<bool>();
+            let coin_flip: bool = self.rng.gen();
+            let coin_flip2: bool = self.rng.gen();
 
-            let x1 = ((self.rng.gen::<f64>() * self.resolution)
-                / (if self.symmetry { 1.0 } else { 2.0 }))
-            .floor();
-            let y1 = (self.rng.gen::<f64>() * (self.resolution - 1.0)).ceil();
-            let v1 = PVector::new(x1, y1);
-            let mut additive = PVector::new(0.0, 0.0);
+            let x1 = self.gen_x();
+            let y1 = self.gen_y();
+
+            let p1 = Point::new(x1, y1);
+            let mut additive = Vector::new(0.0, 0.0);
 
             if !self.enable_diags {
+                // Either adjust x, or y
                 if coin_flip {
-                    if v1.x == 0.0 {
-                        additive += PVector::new(1.0, 0.0);
-                    } else if v1.x == (self.resolution - 1.0) {
-                        additive -= PVector::new(1.0, 0.0);
+                    if p1.x == 0.0 {
+                        // If no x addition, add half
+                        additive += Vector::new(self.step, 0.0);
+                    } else if p1.x == 1.0 {
+                        // If full width, subtract half
+                        additive += Vector::new(-self.step, 0.0);
                     } else {
-                        additive +=
-                            PVector::new(self.rng.gen_range::<f64, _, _>(-1.0, 2.0).floor(), 0.0);
+                        // If neighther, randomly adjust by up to one resolution
+                        additive += Vector::new(self.gen_adjustment() * self.step, 0.0);
                     }
                 } else {
-                    if v1.y == 0.0 {
-                        additive += PVector::new(0.0, 1.0);
-                    } else if v1.y == (self.resolution - 1.0) {
-                        additive -= PVector::new(0.0, 1.0);
+                    // If no x addition, add half
+                    if p1.y == 0.0 {
+                        additive += Vector::new(0.0, self.step);
+                    } else if p1.y == 1.0 {
+                        additive += Vector::new(0.0, -self.step);
                     } else {
-                        additive +=
-                            PVector::new(0.0, self.rng.gen_range::<f64, _, _>(-1.0, 2.0).floor());
+                        // If neighther, randomly adjust by up to one resolution
+                        additive += Vector::new(0.0, self.gen_adjustment() * self.step);
                     }
                 }
             } else {
+                // If we have diagonals, adjust x and y independently
+
                 if coin_flip {
-                    additive +=
-                        PVector::new(self.rng.gen_range::<f64, _, _>(-1.0, 2.0).floor(), 0.0);
+                    additive += Vector::new(self.gen_adjustment() * self.step, 0.0);
                 };
                 if coin_flip2 {
-                    additive +=
-                        PVector::new(0.0, self.rng.gen_range::<f64, _, _>(-1.0, 2.0).floor());
+                    additive += Vector::new(0.0, self.gen_adjustment() * self.step);
                 };
             }
 
-            let mut v2 = v1.clone() + additive;
-            v2 = PVector::new(
-                v2.x.max(0.0).min(self.resolution - 1.0).ceil(),
-                v2.y.max(0.0).min(self.resolution - 1.0).ceil(),
-            );
+            let mut p2 = p1 + additive;
+            // Clamp to valid adjustment range
+            p2 = Point::new(p2.x.max(0.0).min(1.0), p2.y.max(0.0).min(1.0));
 
-            let v1_point = Point::from(v1);
-            let v2_point = Point::from(v2);
-
-            let mut dupe = false;
+            // Check if this line already exists
+            let mut dupe = Duplicates::No;
             for line in self.lines.iter() {
-                let start_point = Point::from(line.start());
-                let end_point = Point::from(line.end());
-                if (start_point.distance(&v1_point) == 0.0 && end_point.distance(&v2_point) == 0.0)
-                    || (start_point.distance(&v2_point) == 0.0
-                        && end_point.distance(&v1_point) == 0.0)
+                if (line.start() == p1 && line.end() == p2)
+                    || (line.start() == p2 && line.end() == p1)
                 {
-                    dupe = true;
+                    dupe = Duplicates::Yes;
                     break;
                 }
             }
 
-            if !dupe && v1_point.distance(&v2_point) > 0.0 {
-                self.lines.push(Line::new(v1, v2));
+            // Check the line is valid, continue if not
+            if dupe == Duplicates::Yes || p1 == p2 {
+                continue;
             }
+
+            self.lines.push(Line::new(p1, p2));
         }
     }
 
@@ -127,10 +158,8 @@ impl Glyph {
         if self.symmetry {
             let mut rendered_lines = self.lines.clone();
             for line in self.lines.iter() {
-                let x1 = line.start().x;
-                let x2 = line.end().x;
-                let start = PVector::new(x1 + (self.width / 2.0 - x1) * 2.0, line.start().y);
-                let end = PVector::new(x2 + (self.width / 2.0 - x2) * 2.0, line.end().y);
+                let start = Point::new(0.5 + (0.5 - line.start().x), line.start().y);
+                let end = Point::new(0.5 + (0.5 - line.end().x), line.end().y);
                 rendered_lines.push(Line::new(start, end));
             }
             rendered_lines
@@ -143,20 +172,20 @@ impl Glyph {
 
 #[derive(Debug, Clone)]
 pub struct Line {
-    start: PVector,
-    end: PVector,
+    start: Point,
+    end: Point,
 }
 
 impl Line {
-    pub fn new(start: PVector, end: PVector) -> Self {
+    pub fn new(start: Point, end: Point) -> Self {
         Self { start, end }
     }
 
-    pub fn start(&self) -> PVector {
+    pub fn start(&self) -> Point {
         self.start
     }
 
-    pub fn end(&self) -> PVector {
+    pub fn end(&self) -> Point {
         self.end
     }
 }
