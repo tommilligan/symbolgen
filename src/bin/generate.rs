@@ -1,7 +1,7 @@
 use std::fs::File;
 
 use cairo::{Context, Format, ImageSurface, LineCap};
-use symbolgen::{Glyph, Vector};
+use symbolgen::{Glyph, Vector, Motif, Symmetry};
 
 fn main() {
     let columns = 26;
@@ -31,7 +31,7 @@ fn main() {
             let offset_x = spacing + ((scale + spacing) * column_number as f64);
             let offset = Vector::new(offset_x, offset_y);
 
-            let glyph = Glyph::new(row_number + 2, 3, true, true, glyph_number as u64);
+            let glyph = Glyph::new(row_number + 2, 3, Symmetry::Horizontal, Motif::Diagonal, glyph_number as u64);
 
             for line in glyph.render().iter() {
                 let start = (line.start() * scale) + offset;

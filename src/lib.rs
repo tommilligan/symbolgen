@@ -16,8 +16,22 @@ use rand_chacha::ChaCha8Rng;
 pub type Point = PointN<f64, U2>;
 pub type Vector = Vector2<f64>;
 
+#[non_exhaustive]
+#[derive(Debug, PartialEq)]
+pub enum Symmetry {
+    Asymmetric,
+    Horizontal,
+}
+
+#[non_exhaustive]
+#[derive(Debug, PartialEq)]
+pub enum Motif {
+    Orthogonal,
+    Diagonal,
+}
+
 #[derive(PartialEq)]
-pub enum Duplicates {
+enum Duplicates {
     Yes,
     No,
 }
@@ -28,17 +42,19 @@ pub struct Glyph {
     num_lines: i32,
     /// The numer steps visible along one grid axis.
     resolution: i32,
-    /// 1 / resolution
-    step: f64,
     /// The number of lines to draw per resolution
     density: i32,
     /// Whether to mirror in the y-axis
-    symmetry: bool,
+    symmetry: Symmetry,
     /// Enable diagonal lines
-    enable_diags: bool,
+    motif: Motif,
+
+    /// 1 / resolution
+    step: f64,
 
     /// Generated lines
     lines: Vec<Line>,
+
     /// RNG
     rng: ChaCha8Rng,
     /// Seed
@@ -46,19 +62,13 @@ pub struct Glyph {
 }
 
 impl Glyph {
-    pub fn new(
-        resolution: i32,
-        density: i32,
-        symmetry: bool,
-        enable_diags: bool,
-        seed: u64,
-    ) -> Self {
+    pub fn new(resolution: i32, density: i32, symmetry: Symmetry, motif: Motif, seed: u64) -> Self {
         let mut new_self = Self {
             resolution,
             step: 1.0 / (resolution - 1) as f64,
             density,
             symmetry,
-            enable_diags,
+            motif,
 
             num_lines: density * resolution,
             lines: Vec::new(),
@@ -71,20 +81,16 @@ impl Glyph {
     }
 
     /// Generate a random x coordinate
-    fn gen_x(&mut self) -> f64 {
-        let gen_resolution = (self.resolution as f64) / (if self.symmetry { 1.0 } else { 2.0 });
-
-        let index = self.rng.gen_range::<f64, _, _>(0.0, gen_resolution).floor();
-        index / (self.resolution - 1) as f64
-    }
-
-    /// Generate a random y coordinate
-    fn gen_y(&mut self) -> f64 {
+    fn gen_coordinate(&mut self) -> f64 {
         let index = self
             .rng
             .gen_range::<f64, _, _>(0.0, self.resolution as f64)
             .floor();
         index / (self.resolution - 1) as f64
+    }
+
+    fn gen_point(&mut self) -> Point {
+        Point::new(self.gen_coordinate(), self.gen_coordinate())
     }
 
     /// Generate -1, 0, 1 with equal probability.
@@ -95,21 +101,20 @@ impl Glyph {
     fn generate(&mut self) {
         for _i in 0..self.num_lines {
             let coin_flip: bool = self.rng.gen();
-            let coin_flip2: bool = self.rng.gen();
+            let coin_fliend_point: bool = self.rng.gen();
 
-            let x1 = self.gen_x();
-            let y1 = self.gen_y();
-
-            let p1 = Point::new(x1, y1);
+            // Generate a random point to start the line
+            let start_point = self.gen_point();
+            // Start with no change at all
             let mut additive = Vector::new(0.0, 0.0);
 
-            if !self.enable_diags {
+            if self.motif == Motif::Orthogonal {
                 // Either adjust x, or y, orthogonally
                 if coin_flip {
-                    if p1.x == 0.0 {
+                    if start_point.x == 0.0 {
                         // If no x addition, add half
                         additive += Vector::new(self.step, 0.0);
-                    } else if (p1.x - 1.0).abs() < EPSILON {
+                    } else if (start_point.x - 1.0).abs() < EPSILON {
                         // If full width, subtract half
                         additive += Vector::new(-self.step, 0.0);
                     } else {
@@ -118,9 +123,9 @@ impl Glyph {
                     }
                 } else {
                     // If no x addition, add half
-                    if p1.y == 0.0 {
+                    if start_point.y == 0.0 {
                         additive += Vector::new(0.0, self.step);
-                    } else if (p1.y - 1.0).abs() < EPSILON {
+                    } else if (start_point.y - 1.0).abs() < EPSILON {
                         additive += Vector::new(0.0, -self.step);
                     } else {
                         // If neighther, randomly adjust by up to one resolution
@@ -133,20 +138,20 @@ impl Glyph {
                 if coin_flip {
                     additive += Vector::new(self.gen_adjustment() * self.step, 0.0);
                 };
-                if coin_flip2 {
+                if coin_fliend_point {
                     additive += Vector::new(0.0, self.gen_adjustment() * self.step);
                 };
             }
 
-            let mut p2 = p1 + additive;
+            let mut end_point = start_point + additive;
             // Clamp to valid adjustment range
-            p2 = Point::new(p2.x.max(0.0).min(1.0), p2.y.max(0.0).min(1.0));
+            end_point = Point::new(end_point.x.max(0.0).min(1.0), end_point.y.max(0.0).min(1.0));
 
             // Check if this line already exists
             let mut dupe = Duplicates::No;
             for line in self.lines.iter() {
-                if (line.start() == p1 && line.end() == p2)
-                    || (line.start() == p2 && line.end() == p1)
+                if (line.start() == start_point && line.end() == end_point)
+                    || (line.start() == end_point && line.end() == start_point)
                 {
                     dupe = Duplicates::Yes;
                     break;
@@ -154,16 +159,16 @@ impl Glyph {
             }
 
             // Check the line is valid, continue if not
-            if dupe == Duplicates::Yes || p1 == p2 {
+            if dupe == Duplicates::Yes || start_point == end_point {
                 continue;
             }
 
-            self.lines.push(Line::new(p1, p2));
+            self.lines.push(Line::new(start_point, end_point));
         }
     }
 
     pub fn render(self) -> Vec<Line> {
-        if self.symmetry {
+        if self.symmetry == Symmetry::Horizontal {
             let mut rendered_lines = self.lines.clone();
             for line in self.lines.iter() {
                 let start = Point::new(0.5 + (0.5 - line.start().x), line.start().y);
@@ -172,7 +177,6 @@ impl Glyph {
             }
             rendered_lines
         } else {
-            if self.symmetry {};
             self.lines
         }
     }
