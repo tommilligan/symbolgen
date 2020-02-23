@@ -5,9 +5,9 @@ use symbolgen::{Glyph, Vector};
 
 fn main() {
     let columns = 26;
-    let rows = 3;
+    let rows = 4;
 
-    let scale = 20.0;
+    let scale = 25.0;
     let spacing = 25.0;
     let line_width = 4.0;
 
@@ -31,7 +31,7 @@ fn main() {
             let offset_x = spacing + ((scale + spacing) * column_number as f64);
             let offset = Vector::new(offset_x, offset_y);
 
-            let glyph = Glyph::new(3, 3, true, true, glyph_number as u64);
+            let glyph = Glyph::new(row_number + 2, 3, true, true, glyph_number as u64);
 
             for line in glyph.render().iter() {
                 let start = (line.start() * scale) + offset;

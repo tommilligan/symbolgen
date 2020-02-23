@@ -1,3 +1,8 @@
+//! Genarate a series of glyphs or symbols.
+//!
+//! With thanks to v3ga. Based on their implementation at:
+//! https://github.com/v3ga/Workshop_Processing_Axidraw_Stereolux_2019/blob/cdf0a7fdec7ea5d4f6f2ee72694661aad6278bbf/axidraw_grid/GridCellRenderAntoine.pde#L1
+
 use nalgebra::{
     base::{dimension::U2, Vector2},
     geometry::Point as PointN,
