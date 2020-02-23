@@ -48,28 +48,45 @@ pub enum Motif {
 
 #[derive(Debug)]
 pub struct Glyph {
-    /// The number of lines generated.
-    num_lines: i32,
-    /// The numer steps visible along one grid axis.
-    resolution: i32,
-    /// The number of lines to draw per resolution
-    density: i32,
-    /// Whether to mirror in the y-axis
-    symmetry: Symmetry,
-    /// Enable diagonal lines
-    motif: Motif,
-
-    /// 1 / resolution
-    step: f64,
-
-    /// RNG
-    rng: ChaCha8Rng,
-    /// Seed
+    /// Original seed
     seed: u64,
+    /// Generated lines
+    lines: Vec<Line>,
 }
 
 impl Glyph {
-    pub fn new(resolution: i32, density: i32, symmetry: Symmetry, motif: Motif, seed: u64) -> Self {
+    pub fn new(seed: u64, lines: Vec<Line>) -> Self {
+        Self { seed, lines }
+    }
+
+    pub fn seed(&self) -> u64 {
+        self.seed
+    }
+
+    pub fn lines(&self) -> &[Line] {
+        &self.lines
+    }
+}
+
+#[derive(Debug)]
+pub struct Alphabet {
+    /// The numer steps visible along one grid axis.
+    pub resolution: i32,
+    /// The number of lines to draw per resolution
+    pub density: i32,
+    /// Whether to mirror in the y-axis
+    pub symmetry: Symmetry,
+    /// Enable diagonal lines
+    pub motif: Motif,
+
+    /// The number of lines generated.
+    pub num_lines: i32,
+    /// 1 / resolution
+    pub step: f64,
+}
+
+impl Alphabet {
+    pub fn new(resolution: i32, density: i32, symmetry: Symmetry, motif: Motif) -> Self {
         Self {
             resolution,
             step: 1.0 / (resolution - 1) as f64,
@@ -78,38 +95,36 @@ impl Glyph {
             motif,
 
             num_lines: density * resolution,
-
-            rng: ChaCha8Rng::seed_from_u64(seed),
-            seed,
         }
     }
 
     /// Generate a random x coordinate
-    fn gen_coordinate(&mut self) -> f64 {
-        let index = self
-            .rng
+    fn gen_coordinate<R: Rng>(&self, rng: &mut R) -> f64 {
+        let index = rng
             .gen_range::<f64, _, _>(0.0, self.resolution as f64)
             .floor();
         index / (self.resolution - 1) as f64
     }
 
-    fn gen_point(&mut self) -> Point {
-        Point::new(self.gen_coordinate(), self.gen_coordinate())
+    fn gen_point<R: Rng>(&self, rng: &mut R) -> Point {
+        Point::new(self.gen_coordinate(rng), self.gen_coordinate(rng))
     }
 
     /// Generate -1, 0, 1 with equal probability.
-    fn gen_adjustment(&mut self) -> f64 {
-        self.rng.gen_range(-1, 2) as f64
+    fn gen_adjustment<R: Rng>(&self, rng: &mut R) -> f64 {
+        rng.gen_range(-1, 2) as f64
     }
 
-    pub fn generate(&mut self) -> Vec<Line> {
+    pub fn generate(&self, seed: u64) -> Glyph {
+        let mut rng = ChaCha8Rng::seed_from_u64(seed);
         let mut lines = Vec::new();
+
         for _i in 0..self.num_lines {
-            let coin_flip: bool = self.rng.gen();
-            let coin_fliend_point: bool = self.rng.gen();
+            let coin_flip: bool = rng.gen();
+            let coin_fliend_point: bool = rng.gen();
 
             // Generate a random point to start the line
-            let start_point = self.gen_point();
+            let start_point = self.gen_point(&mut rng);
             // Start with no change at all
             let mut additive = Vector::new(0.0, 0.0);
 
@@ -124,7 +139,7 @@ impl Glyph {
                         additive += Vector::new(-self.step, 0.0);
                     } else {
                         // If neighther, randomly adjust by up to one resolution
-                        additive += Vector::new(self.gen_adjustment() * self.step, 0.0);
+                        additive += Vector::new(self.gen_adjustment(&mut rng) * self.step, 0.0);
                     }
                 } else {
                     // If no x addition, add half
@@ -134,17 +149,17 @@ impl Glyph {
                         additive += Vector::new(0.0, -self.step);
                     } else {
                         // If neighther, randomly adjust by up to one resolution
-                        additive += Vector::new(0.0, self.gen_adjustment() * self.step);
+                        additive += Vector::new(0.0, self.gen_adjustment(&mut rng) * self.step);
                     }
                 }
             } else {
                 // If we have diagonals, adjust x and y independently
 
                 if coin_flip {
-                    additive += Vector::new(self.gen_adjustment() * self.step, 0.0);
+                    additive += Vector::new(self.gen_adjustment(&mut rng) * self.step, 0.0);
                 };
                 if coin_fliend_point {
-                    additive += Vector::new(0.0, self.gen_adjustment() * self.step);
+                    additive += Vector::new(0.0, self.gen_adjustment(&mut rng) * self.step);
                 };
             }
 
@@ -175,7 +190,8 @@ impl Glyph {
                 lines.push(Line::new(start, end));
             }
         };
-        lines
+
+        Glyph::new(seed, lines)
     }
 }
 

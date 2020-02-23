@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use cairo::{Context, Format, ImageSurface, LineCap};
 use structopt::StructOpt;
-use symbolgen_core::{Glyph, Motif, Symmetry, Vector};
+use symbolgen_core::{Alphabet, Motif, Symmetry, Vector};
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -48,15 +48,9 @@ fn generate(options: Options) {
             let offset_x = spacing + ((scale + spacing) * column_number as f64);
             let offset = Vector::new(offset_x, offset_y);
 
-            let mut glyph = Glyph::new(
-                row_number + 2,
-                3,
-                options.symmetry,
-                Motif::Diagonal,
-                glyph_number as u64,
-            );
+            let alphabet = Alphabet::new(row_number + 2, 3, options.symmetry, Motif::Diagonal);
 
-            for line in glyph.generate().iter() {
+            for line in alphabet.generate(glyph_number as u64).lines().iter() {
                 let start = (line.start() * scale) + offset;
                 let end = (line.end() * scale) + offset;
                 context.move_to(start.x, start.y);
