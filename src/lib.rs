@@ -2,6 +2,9 @@
 //!
 //! With thanks to v3ga. Based on their implementation at:
 //! https://github.com/v3ga/Workshop_Processing_Axidraw_Stereolux_2019/blob/cdf0a7fdec7ea5d4f6f2ee72694661aad6278bbf/axidraw_grid/GridCellRenderAntoine.pde#L1
+#![deny(clippy::all)]
+
+use std::f64::EPSILON;
 
 use nalgebra::{
     base::{dimension::U2, Vector2},
@@ -101,12 +104,12 @@ impl Glyph {
             let mut additive = Vector::new(0.0, 0.0);
 
             if !self.enable_diags {
-                // Either adjust x, or y
+                // Either adjust x, or y, orthogonally
                 if coin_flip {
                     if p1.x == 0.0 {
                         // If no x addition, add half
                         additive += Vector::new(self.step, 0.0);
-                    } else if p1.x == 1.0 {
+                    } else if (p1.x - 1.0).abs() < EPSILON {
                         // If full width, subtract half
                         additive += Vector::new(-self.step, 0.0);
                     } else {
@@ -117,7 +120,7 @@ impl Glyph {
                     // If no x addition, add half
                     if p1.y == 0.0 {
                         additive += Vector::new(0.0, self.step);
-                    } else if p1.y == 1.0 {
+                    } else if (p1.y - 1.0).abs() < EPSILON {
                         additive += Vector::new(0.0, -self.step);
                     } else {
                         // If neighther, randomly adjust by up to one resolution

@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -e
+
+eprintln() {
+  >&2 echo "$1"
+}
+
+cargo run --bin generate
+mv out.png /tmp/generate.png
+sha512sum -c ./integrate/generate.png.sha512
