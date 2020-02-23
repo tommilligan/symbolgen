@@ -1,0 +1,10 @@
+[package]
+name = "symbolgen"
+version = "0.1.0"
+authors = ["Tom Milligan <tom@reinfer.io>"]
+edition = "2018"
+
+[dependencies]
+cairo-rs = { version = "0.8.1", features = ["png", "svg"] }
+structopt = "0.3.9"
+symbolgen_core = { path = "../symbolgen_core" }

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use cairo::{Context, Format, ImageSurface, LineCap};
 use structopt::StructOpt;
-use symbolgen::{Glyph, Motif, Symmetry, Vector};
+use symbolgen_core::{Glyph, Motif, Symmetry, Vector};
 
 #[derive(Debug, StructOpt)]
 #[structopt(
