@@ -46,12 +46,6 @@ pub enum Motif {
     Diagonal,
 }
 
-#[derive(PartialEq)]
-enum Duplicates {
-    Yes,
-    No,
-}
-
 #[derive(Debug)]
 pub struct Glyph {
     /// The number of lines generated.
@@ -68,9 +62,6 @@ pub struct Glyph {
     /// 1 / resolution
     step: f64,
 
-    /// Generated lines
-    lines: Vec<Line>,
-
     /// RNG
     rng: ChaCha8Rng,
     /// Seed
@@ -79,7 +70,7 @@ pub struct Glyph {
 
 impl Glyph {
     pub fn new(resolution: i32, density: i32, symmetry: Symmetry, motif: Motif, seed: u64) -> Self {
-        let mut new_self = Self {
+        Self {
             resolution,
             step: 1.0 / (resolution - 1) as f64,
             density,
@@ -87,17 +78,10 @@ impl Glyph {
             motif,
 
             num_lines: density * resolution,
-            lines: Vec::new(),
 
             rng: ChaCha8Rng::seed_from_u64(seed),
             seed,
-        };
-        new_self.generate();
-        new_self
-    }
-
-    pub fn lines(&self) -> &[Line] {
-        &self.lines
+        }
     }
 
     /// Generate a random x coordinate
@@ -118,7 +102,8 @@ impl Glyph {
         self.rng.gen_range(-1, 2) as f64
     }
 
-    fn generate(&mut self) {
+    pub fn generate(&mut self) -> Vec<Line> {
+        let mut lines = Vec::new();
         for _i in 0..self.num_lines {
             let coin_flip: bool = self.rng.gen();
             let coin_fliend_point: bool = self.rng.gen();
@@ -167,44 +152,34 @@ impl Glyph {
             // Clamp to valid adjustment range
             end_point = Point::new(end_point.x.max(0.0).min(1.0), end_point.y.max(0.0).min(1.0));
 
-            // Check if this line already exists
-            let mut dupe = Duplicates::No;
-            for line in self.lines.iter() {
-                if (line.start() == start_point && line.end() == end_point)
-                    || (line.start() == end_point && line.end() == start_point)
-                {
-                    dupe = Duplicates::Yes;
-                    break;
-                }
-            }
-
             // Check the line is valid, continue if not
-            if dupe == Duplicates::Yes || start_point == end_point {
+            if start_point == end_point {
                 continue;
             }
 
-            self.lines.push(Line::new(start_point, end_point));
+            lines.push(Line::new(start_point, end_point));
         }
 
         if self.symmetry == Symmetry::Horizontal || self.symmetry == Symmetry::HorizontalVertical {
-            for line in self.lines.clone().iter() {
+            for line in lines.clone().iter() {
                 let start = Point::new(0.5 + (0.5 - line.start().x), line.start().y);
                 let end = Point::new(0.5 + (0.5 - line.end().x), line.end().y);
-                self.lines.push(Line::new(start, end));
+                lines.push(Line::new(start, end));
             }
-        }
+        };
 
         if self.symmetry == Symmetry::Vertical || self.symmetry == Symmetry::HorizontalVertical {
-            for line in self.lines.clone().iter() {
+            for line in lines.clone().iter() {
                 let start = Point::new(line.start().x, 0.5 + (0.5 - line.start().y));
                 let end = Point::new(line.end().x, 0.5 + (0.5 - line.end().y));
-                self.lines.push(Line::new(start, end));
+                lines.push(Line::new(start, end));
             }
-        }
+        };
+        lines
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Line {
     start: Point,
     end: Point,

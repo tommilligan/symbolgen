@@ -48,7 +48,7 @@ fn generate(options: Options) {
             let offset_x = spacing + ((scale + spacing) * column_number as f64);
             let offset = Vector::new(offset_x, offset_y);
 
-            let glyph = Glyph::new(
+            let mut glyph = Glyph::new(
                 row_number + 2,
                 3,
                 options.symmetry,
@@ -56,7 +56,7 @@ fn generate(options: Options) {
                 glyph_number as u64,
             );
 
-            for line in glyph.lines().iter() {
+            for line in glyph.generate().iter() {
                 let start = (line.start() * scale) + offset;
                 let end = (line.end() * scale) + offset;
                 context.move_to(start.x, start.y);
