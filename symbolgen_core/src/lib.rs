@@ -4,12 +4,13 @@
 //! https://github.com/v3ga/Workshop_Processing_Axidraw_Stereolux_2019/blob/cdf0a7fdec7ea5d4f6f2ee72694661aad6278bbf/axidraw_grid/GridCellRenderAntoine.pde#L1
 #![deny(clippy::all)]
 
+use std::f64::consts::PI;
 use std::f64::EPSILON;
 use std::str::FromStr;
 
 use nalgebra::{
-    base::{dimension::U2, Vector2},
-    geometry::Point as PointN,
+    base::{dimension::U2, Matrix3, Vector2},
+    geometry::{Isometry, Point as PointN, Rotation2, Translation},
 };
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
@@ -18,12 +19,15 @@ pub type Point = PointN<f64, U2>;
 pub type Vector = Vector2<f64>;
 
 #[non_exhaustive]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Symmetry {
     Asymmetric,
     Horizontal,
     Vertical,
     HorizontalVertical,
+    Rotation90,
+    Rotation180,
+    Matrices(Vec<Matrix3<f64>>),
 }
 
 impl FromStr for Symmetry {
@@ -34,6 +38,8 @@ impl FromStr for Symmetry {
             "horizontal" => Ok(Symmetry::Horizontal),
             "vertical" => Ok(Symmetry::Vertical),
             "horizontalvertical" => Ok(Symmetry::HorizontalVertical),
+            "rotation90" => Ok(Symmetry::Rotation90),
+            "rotation180" => Ok(Symmetry::Rotation180),
             _ => Err(format!("Could not parse symmetry '{}'", symmetry)),
         }
     }
@@ -177,16 +183,51 @@ impl Alphabet {
 
         if self.symmetry == Symmetry::Horizontal || self.symmetry == Symmetry::HorizontalVertical {
             for line in lines.clone().iter() {
-                let start = Point::new(0.5 + (0.5 - line.start().x), line.start().y);
-                let end = Point::new(0.5 + (0.5 - line.end().x), line.end().y);
+                // Reflect in the y-axis, then translate x-axis by 1.0
+                let matrix = Matrix3::new(-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+                    .append_translation(&Vector2::new(1.0, 0.0));
+
+                let start = matrix.transform_point(&line.start());
+                let end = matrix.transform_point(&line.end());
                 lines.push(Line::new(start, end));
             }
         };
 
         if self.symmetry == Symmetry::Vertical || self.symmetry == Symmetry::HorizontalVertical {
             for line in lines.clone().iter() {
-                let start = Point::new(line.start().x, 0.5 + (0.5 - line.start().y));
-                let end = Point::new(line.end().x, 0.5 + (0.5 - line.end().y));
+                // Reflect in the x-axis, then translate y-axis by 1.0
+                let matrix = Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0)
+                    .append_translation(&Vector2::new(0.0, 1.0));
+
+                let start = matrix.transform_point(&line.start());
+                let end = matrix.transform_point(&line.end());
+                lines.push(Line::new(start, end));
+            }
+        };
+
+        if self.symmetry == Symmetry::Rotation180 || self.symmetry == Symmetry::Rotation90 {
+            for line in lines.clone().iter() {
+                // Reflect in the y-axis, then translate x-axis by 1.0
+                let matrix = Isometry::from_parts(
+                    Translation::from(Vector2::new(1.0, 1.0)),
+                    Rotation2::new(PI),
+                );
+
+                let start = matrix.transform_point(&line.start());
+                let end = matrix.transform_point(&line.end());
+                lines.push(Line::new(start, end));
+            }
+        };
+
+        if self.symmetry == Symmetry::Rotation90 {
+            for line in lines.clone().iter() {
+                let matrix = Isometry::from_parts(
+                    Translation::from(Vector2::new(1.0, 0.0)),
+                    Rotation2::new(PI / 2.0),
+                );
+
+                let start = matrix.transform_point(&line.start());
+                let end = matrix.transform_point(&line.end());
                 lines.push(Line::new(start, end));
             }
         };

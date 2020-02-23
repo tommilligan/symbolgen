@@ -43,12 +43,12 @@ fn generate(options: Options) {
 
     for row_number in 0..rows {
         let offset_y = spacing + ((scale + spacing) * row_number as f64);
+
+        let alphabet = Alphabet::new(row_number + 2, 3, options.symmetry.clone(), Motif::Diagonal);
         for column_number in 0..columns {
             let glyph_number = row_number * columns + column_number;
             let offset_x = spacing + ((scale + spacing) * column_number as f64);
             let offset = Vector::new(offset_x, offset_y);
-
-            let alphabet = Alphabet::new(row_number + 2, 3, options.symmetry, Motif::Diagonal);
 
             for line in alphabet.generate(glyph_number as u64).lines().iter() {
                 let start = (line.start() * scale) + offset;
