@@ -5,6 +5,7 @@
 #![deny(clippy::all)]
 
 use std::f64::EPSILON;
+use std::str::FromStr;
 
 use nalgebra::{
     base::{dimension::U2, Vector2},
@@ -17,10 +18,25 @@ pub type Point = PointN<f64, U2>;
 pub type Vector = Vector2<f64>;
 
 #[non_exhaustive]
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Symmetry {
     Asymmetric,
     Horizontal,
+    Vertical,
+    HorizontalVertical,
+}
+
+impl FromStr for Symmetry {
+    type Err = String;
+    fn from_str(symmetry: &str) -> Result<Self, Self::Err> {
+        match symmetry {
+            "asymmetric" => Ok(Symmetry::Asymmetric),
+            "horizontal" => Ok(Symmetry::Horizontal),
+            "vertical" => Ok(Symmetry::Vertical),
+            "horizontalvertical" => Ok(Symmetry::HorizontalVertical),
+            _ => Err(format!("Could not parse symmetry '{}'", symmetry)),
+        }
+    }
 }
 
 #[non_exhaustive]
@@ -78,6 +94,10 @@ impl Glyph {
         };
         new_self.generate();
         new_self
+    }
+
+    pub fn lines(&self) -> &[Line] {
+        &self.lines
     }
 
     /// Generate a random x coordinate
@@ -165,19 +185,21 @@ impl Glyph {
 
             self.lines.push(Line::new(start_point, end_point));
         }
-    }
 
-    pub fn render(self) -> Vec<Line> {
-        if self.symmetry == Symmetry::Horizontal {
-            let mut rendered_lines = self.lines.clone();
-            for line in self.lines.iter() {
+        if self.symmetry == Symmetry::Horizontal || self.symmetry == Symmetry::HorizontalVertical {
+            for line in self.lines.clone().iter() {
                 let start = Point::new(0.5 + (0.5 - line.start().x), line.start().y);
                 let end = Point::new(0.5 + (0.5 - line.end().x), line.end().y);
-                rendered_lines.push(Line::new(start, end));
+                self.lines.push(Line::new(start, end));
             }
-            rendered_lines
-        } else {
-            self.lines
+        }
+
+        if self.symmetry == Symmetry::Vertical || self.symmetry == Symmetry::HorizontalVertical {
+            for line in self.lines.clone().iter() {
+                let start = Point::new(line.start().x, 0.5 + (0.5 - line.start().y));
+                let end = Point::new(line.end().x, 0.5 + (0.5 - line.end().y));
+                self.lines.push(Line::new(start, end));
+            }
         }
     }
 }

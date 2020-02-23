@@ -11,3 +11,4 @@ cairo-rs = { version = "0.8.1", features = ["png", "svg"] }
 nalgebra = "0.19.0"
 rand = "0.7.3"
 rand_chacha = "0.2.1"
+structopt = "0.3.9"

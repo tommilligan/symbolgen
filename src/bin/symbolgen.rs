@@ -1,9 +1,27 @@
 use std::fs::File;
+use std::io::{stdout, Write};
+use std::path::PathBuf;
 
 use cairo::{Context, Format, ImageSurface, LineCap};
-use symbolgen::{Glyph, Vector, Motif, Symmetry};
+use structopt::StructOpt;
+use symbolgen::{Glyph, Motif, Symmetry, Vector};
 
-fn main() {
+#[derive(Debug, StructOpt)]
+#[structopt(
+    name = "symbolgen",
+    about = "Generate alphabets of configurable symbols."
+)]
+struct Options {
+    /// Output file, stdout if not present
+    #[structopt(long = "output", parse(from_os_str))]
+    output: Option<PathBuf>,
+
+    /// Symmetry to use in generation.
+    #[structopt(long = "symmetry", default_value = "asymmetric")]
+    symmetry: Symmetry,
+}
+
+fn generate(options: Options) {
     let columns = 26;
     let rows = 4;
 
@@ -13,7 +31,6 @@ fn main() {
 
     let canvas_width = spacing as i32 + ((scale + spacing) as i32 * columns);
     let canvas_height = spacing as i32 + ((scale + spacing) as i32 * rows);
-    let output_path = "out.png";
     let surface = ImageSurface::create(Format::ARgb32, canvas_width, canvas_height)
         .expect("Couldn't create surface");
     let context = Context::new(&surface);
@@ -31,9 +48,15 @@ fn main() {
             let offset_x = spacing + ((scale + spacing) * column_number as f64);
             let offset = Vector::new(offset_x, offset_y);
 
-            let glyph = Glyph::new(row_number + 2, 3, Symmetry::Horizontal, Motif::Diagonal, glyph_number as u64);
+            let glyph = Glyph::new(
+                row_number + 2,
+                3,
+                options.symmetry,
+                Motif::Diagonal,
+                glyph_number as u64,
+            );
 
-            for line in glyph.render().iter() {
+            for line in glyph.lines().iter() {
                 let start = (line.start() * scale) + offset;
                 let end = (line.end() * scale) + offset;
                 context.move_to(start.x, start.y);
@@ -45,8 +68,17 @@ fn main() {
     context.set_line_cap(LineCap::Round);
     context.stroke();
 
-    let mut file = File::create(output_path).expect("Couldn't create file");
+    let mut file: Box<dyn Write> = if let Some(output_path) = options.output {
+        Box::new(File::create(output_path).expect("Couldn't create file"))
+    } else {
+        Box::new(stdout())
+    };
     surface
         .write_to_png(&mut file)
         .expect("Couldn't write to png");
+}
+
+fn main() {
+    let opt = Options::from_args();
+    generate(opt)
 }

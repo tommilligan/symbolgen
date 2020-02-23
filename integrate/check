@@ -6,6 +6,5 @@ eprintln() {
   >&2 echo "$1"
 }
 
-cargo run --bin generate
-mv out.png /tmp/generate.png
+cargo run --bin symbolgen -- --output /tmp/generate.png --symmetry horizontal
 sha512sum -c ./integrate/generate.png.sha512
