@@ -5,6 +5,6 @@ authors = ["Tom Milligan <tom@reinfer.io>"]
 edition = "2018"
 
 [dependencies]
-nalgebra = "0.19.0"
+nalgebra = "0.20.0"
 rand = "0.7.3"
 rand_chacha = "0.2.1"
